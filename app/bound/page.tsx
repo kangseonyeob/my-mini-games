@@ -35,8 +35,8 @@ const CANVAS_HEIGHT = 600;
 
 const BoundGame = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animationRef = useRef<number>();
-  const audioContextRef = useRef<AudioContext>();
+  const animationRef = useRef<number | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
   const [gameState, setGameState] = useState<'ready' | 'playing' | 'paused' | 'victory' | 'gameOver'>('ready');
   const [ball, setBall] = useState<Ball>({
     x: CANVAS_WIDTH / 2,
