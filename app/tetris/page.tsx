@@ -284,7 +284,7 @@ export default function Tetris() {
       onKeyUp={keyUp}
       autoFocus
     >
-      <h1 className="text-4xl font-bold mb-4">Tetris</h1>
+      <h1 className="text-4xl font-bold mb-4">Tetris (수정 최종본)</h1>
       <div className="flex gap-8">
         <div
           className="grid border-2 border-gray-500"
