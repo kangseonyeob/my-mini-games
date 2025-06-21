@@ -136,7 +136,8 @@ export default function Tetris() {
       clonedPlayer.pos.x += offset;
       offset = -(offset + (offset > 0 ? 1 : -1));
       if (offset > clonedPlayer.tetromino.shape[0].length) {
-        rotate(clonedPlayer.tetromino.shape, -dir);
+        // If it's still colliding after checking all offsets, revert the rotation
+        clonedPlayer.tetromino.shape = rotate(clonedPlayer.tetromino.shape, -dir);
         clonedPlayer.pos.x = pos;
         return;
       }
