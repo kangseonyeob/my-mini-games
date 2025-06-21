@@ -451,6 +451,7 @@ export default function Tetris() {
     setIsPaused(false);
     
     console.log('Game started, isMuted:', isMuted);
+    // 게임 시작 시 자동으로 BGM 재생
     if (!isMuted) {
       console.log('Attempting to start BGM...');
       startBGM();
@@ -513,6 +514,26 @@ export default function Tetris() {
       return () => clearInterval(interval);
     }
   }, [moveDown, gameOver, isPaused, level]);
+
+  // 페이지 로드 시 BGM 자동 시작
+  useEffect(() => {
+    if (!isMuted && !isBGMPlaying) {
+      // 사용자 상호작용 후에 BGM 시작하도록 대기
+      const handleFirstInteraction = () => {
+        startBGM();
+        document.removeEventListener('click', handleFirstInteraction);
+        document.removeEventListener('keydown', handleFirstInteraction);
+      };
+      
+      document.addEventListener('click', handleFirstInteraction);
+      document.addEventListener('keydown', handleFirstInteraction);
+      
+      return () => {
+        document.removeEventListener('click', handleFirstInteraction);
+        document.removeEventListener('keydown', handleFirstInteraction);
+      };
+    }
+  }, [isMuted, isBGMPlaying, startBGM]);
 
   const displayBoard = board.map(row => [...row]);
   
@@ -614,39 +635,19 @@ export default function Tetris() {
                 {gameOver ? '🎮 새 게임' : '🚀 게임 시작'}
               </button>
               
-              <div className="grid grid-cols-2 gap-3">
-                <button 
-                  onClick={() => setIsMuted(!isMuted)}
-                  className={`px-4 py-2 rounded-xl font-bold transition-all duration-200 ${
-                    isMuted 
-                      ? 'bg-red-600 hover:bg-red-700 text-white' 
-                      : 'bg-green-600 hover:bg-green-700 text-white'
-                  }`}
-                >
-                  {isMuted ? '🔇' : '🔊'}
-                </button>
-                
-                <button 
-                  onClick={() => {
-                    if (isBGMPlaying) {
-                      stopBGM();
-                    } else {
-                      startBGM();
-                    }
-                  }}
-                  className={`px-4 py-2 rounded-xl font-bold transition-all duration-200 ${
-                    isBGMPlaying 
-                      ? 'bg-purple-600 hover:bg-purple-700 text-white' 
-                      : 'bg-gray-600 hover:bg-gray-700 text-white'
-                  }`}
-                  disabled={isMuted}
-                >
-                  {isBGMPlaying ? '🎵' : '🎵'}
-                </button>
-              </div>
+              <button 
+                onClick={() => setIsMuted(!isMuted)}
+                className={`px-6 py-3 rounded-xl font-bold transition-all duration-200 ${
+                  isMuted 
+                    ? 'bg-red-600 hover:bg-red-700 text-white' 
+                    : 'bg-green-600 hover:bg-green-700 text-white'
+                }`}
+              >
+                {isMuted ? '🔇 음소거' : '🔊 사운드 켜기'}
+              </button>
             </div>
             
-            {isBGMPlaying && (
+            {isBGMPlaying && !isMuted && (
               <div className="p-3 border border-purple-500 rounded-xl bg-purple-900/30 backdrop-blur-sm text-center">
                 <span className="text-purple-400 text-sm">🎵 BGM 재생 중...</span>
               </div>
