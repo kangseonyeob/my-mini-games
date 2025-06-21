@@ -130,10 +130,13 @@ const useAudio = () => {
           gainNode.connect(audioContextRef.current.destination);
           
           oscillator.frequency.setValueAtTime(frequency, audioContextRef.current.currentTime);
-          oscillator.type = 'triangle';
+          oscillator.type = 'square'; // 더 클래식한 8비트 사운드
           
-          gainNode.gain.setValueAtTime(0.1, audioContextRef.current.currentTime);
-          gainNode.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + duration);
+          // 부드러운 볼륨 조절
+          gainNode.gain.setValueAtTime(0, audioContextRef.current.currentTime);
+          gainNode.gain.linearRampToValueAtTime(0.08, audioContextRef.current.currentTime + 0.01);
+          gainNode.gain.exponentialRampToValueAtTime(0.05, audioContextRef.current.currentTime + duration * 0.8);
+          gainNode.gain.exponentialRampToValueAtTime(0.001, audioContextRef.current.currentTime + duration);
           
           oscillator.start(audioContextRef.current.currentTime);
           oscillator.stop(audioContextRef.current.currentTime + duration);
@@ -163,25 +166,74 @@ const useAudio = () => {
     const playMelodyLoop = () => {
       if (isMuted || !audioContextRef.current) return;
       
+      // 완전한 테트리스 BGM 멜로디 (Korobeiniki)
       const melody = [
-        { freq: 330, duration: 0.4 }, // E
-        { freq: 247, duration: 0.2 }, // B
-        { freq: 262, duration: 0.2 }, // C
-        { freq: 294, duration: 0.4 }, // D
-        { freq: 262, duration: 0.2 }, // C
-        { freq: 247, duration: 0.2 }, // B
-        { freq: 220, duration: 0.4 }, // A
-        { freq: 220, duration: 0.2 }, // A
-        { freq: 262, duration: 0.2 }, // C
-        { freq: 330, duration: 0.4 }, // E
-        { freq: 294, duration: 0.2 }, // D
-        { freq: 262, duration: 0.2 }, // C
-        { freq: 247, duration: 0.8 }, // B
+        // 첫 번째 구간
+        { freq: 330, duration: 0.5 }, // E4
+        { freq: 247, duration: 0.25 }, // B3
+        { freq: 262, duration: 0.25 }, // C4
+        { freq: 294, duration: 0.5 }, // D4
+        { freq: 262, duration: 0.25 }, // C4
+        { freq: 247, duration: 0.25 }, // B3
+        { freq: 220, duration: 0.5 }, // A3
+        { freq: 220, duration: 0.25 }, // A3
+        { freq: 262, duration: 0.25 }, // C4
+        { freq: 330, duration: 0.5 }, // E4
+        { freq: 294, duration: 0.25 }, // D4
+        { freq: 262, duration: 0.25 }, // C4
+        { freq: 247, duration: 0.75 }, // B3
+        { freq: 247, duration: 0.25 }, // B3
+        { freq: 262, duration: 0.25 }, // C4
+        { freq: 294, duration: 0.5 }, // D4
+        { freq: 330, duration: 0.5 }, // E4
+        { freq: 262, duration: 0.5 }, // C4
+        { freq: 220, duration: 0.5 }, // A3
+        { freq: 220, duration: 0.5 }, // A3
+        { freq: 0, duration: 0.25 }, // 쉼표
+        
+        // 두 번째 구간
+        { freq: 294, duration: 0.75 }, // D4
+        { freq: 349, duration: 0.25 }, // F4
+        { freq: 440, duration: 0.5 }, // A4
+        { freq: 392, duration: 0.25 }, // G4
+        { freq: 349, duration: 0.25 }, // F4
+        { freq: 330, duration: 0.75 }, // E4
+        { freq: 262, duration: 0.25 }, // C4
+        { freq: 330, duration: 0.5 }, // E4
+        { freq: 294, duration: 0.25 }, // D4
+        { freq: 262, duration: 0.25 }, // C4
+        { freq: 247, duration: 0.75 }, // B3
+        { freq: 247, duration: 0.25 }, // B3
+        { freq: 262, duration: 0.25 }, // C4
+        { freq: 294, duration: 0.5 }, // D4
+        { freq: 330, duration: 0.5 }, // E4
+        { freq: 262, duration: 0.5 }, // C4
+        { freq: 220, duration: 0.5 }, // A3
+        { freq: 220, duration: 0.5 }, // A3
+        { freq: 0, duration: 0.5 }, // 쉼표
+        
+        // 세 번째 구간 (반복)
+        { freq: 330, duration: 0.5 }, // E4
+        { freq: 247, duration: 0.25 }, // B3
+        { freq: 262, duration: 0.25 }, // C4
+        { freq: 294, duration: 0.5 }, // D4
+        { freq: 262, duration: 0.25 }, // C4
+        { freq: 247, duration: 0.25 }, // B3
+        { freq: 220, duration: 0.5 }, // A3
+        { freq: 220, duration: 0.25 }, // A3
+        { freq: 262, duration: 0.25 }, // C4
+        { freq: 330, duration: 0.5 }, // E4
+        { freq: 294, duration: 0.25 }, // D4
+        { freq: 262, duration: 0.25 }, // C4
+        { freq: 247, duration: 1.0 }, // B3 (길게)
+        { freq: 0, duration: 0.5 }, // 쉼표
       ];
       
       let currentTime = 0;
       melody.forEach((note) => {
-        playBGMNote(note.freq, note.duration, currentTime * 1000);
+        if (note.freq > 0) { // 쉼표가 아닌 경우만 재생
+          playBGMNote(note.freq, note.duration, currentTime * 1000);
+        }
         currentTime += note.duration;
       });
       
@@ -191,7 +243,7 @@ const useAudio = () => {
         if (bgmTimeoutRef.current && !isMuted && audioContextRef.current) {
           playMelodyLoop();
         }
-      }, (currentTime + 1) * 1000);
+      }, (currentTime + 0.5) * 1000); // 약간의 간격 후 반복
     };
     
     // Start the melody loop immediately
