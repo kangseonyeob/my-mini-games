@@ -117,10 +117,10 @@ const useAudio = () => {
   }, [playSound]);
 
   const playBGMNote = useCallback((frequency: number, duration: number, delay: number) => {
-    if (isMuted || !audioContextRef.current || !isBGMPlaying) return;
+    if (isMuted || !audioContextRef.current) return;
     
     setTimeout(() => {
-      if (isBGMPlaying && !isMuted && audioContextRef.current) {
+      if (!isMuted && audioContextRef.current && bgmTimeoutRef.current) {
         try {
           const oscillator = audioContextRef.current.createOscillator();
           const gainNode = audioContextRef.current.createGain();
@@ -141,10 +141,10 @@ const useAudio = () => {
         }
       }
     }, delay);
-  }, [isMuted, isBGMPlaying]);
+  }, [isMuted]);
 
   const startBGM = useCallback(() => {
-    if (isMuted || !audioContextRef.current) return;
+    if (isMuted || !audioContextRef.current || isBGMPlaying) return;
     
     // Resume AudioContext if suspended (required for user interaction)
     if (audioContextRef.current.state === 'suspended') {
@@ -160,7 +160,7 @@ const useAudio = () => {
     setIsBGMPlaying(true);
     
     const playMelodyLoop = () => {
-      if (!isBGMPlaying || isMuted) return;
+      if (isMuted || !audioContextRef.current) return;
       
       const melody = [
         { freq: 330, duration: 0.4 }, // E
@@ -184,17 +184,18 @@ const useAudio = () => {
         currentTime += note.duration;
       });
       
-      // Schedule next loop
+      // Schedule next loop - only if BGM is still supposed to be playing
       bgmTimeoutRef.current = setTimeout(() => {
-        if (isBGMPlaying && !isMuted) {
+        // Check the ref directly instead of state to avoid closure issues
+        if (bgmTimeoutRef.current && !isMuted && audioContextRef.current) {
           playMelodyLoop();
         }
       }, (currentTime + 1) * 1000);
     };
     
-    // Start the melody loop
+    // Start the melody loop immediately
     playMelodyLoop();
-  }, [isMuted, isBGMPlaying, playBGMNote]);
+  }, [isMuted]);
 
   const stopBGM = useCallback(() => {
     console.log('Stopping BGM...');
