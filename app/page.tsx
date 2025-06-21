@@ -23,6 +23,11 @@ export default function HomePage() {
           title="BOUND"
           description="클래식 벽돌깨기 게임을 재해석했습니다. 화살표 키와 스페이스바로 조작하여 모든 레벨을 클리어하세요!"
         />
+        <GameCard
+          href="/tetris"
+          title="테트리스"
+          description="전설적인 블록 퍼즐 게임, 테트리스! 화살표 키로 블록을 조작하여 줄을 완성하고 점수를 획득하세요."
+        />
       </div>
     </main>
   );
