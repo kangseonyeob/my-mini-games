@@ -2,338 +2,280 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
-// Types
-export type STAGECELL = string | number;
-export type STAGE = STAGECELL[][];
+const BOARD_WIDTH = 10;
+const BOARD_HEIGHT = 20;
 
-export type PLAYER = {
-  pos: {
-    x: number;
-    y: number;
-  };
-  tetromino: {
-    shape: number[][];
-    color: string;
-  };
-  tetrominoKey: string | number;
-};
-
-const LINE_POINTS = [40, 100, 300, 1200];
-
-// Tetrominoes
 const TETROMINOES = {
-  0: { shape: [[0]], color: '0, 0, 0' },
-  I: {
-    shape: [[1, 1, 1, 1]],
-    color: '80, 227, 230',
-  },
-  J: {
-    shape: [
-      [1, 0, 0],
-      [1, 1, 1],
-    ],
-    color: '36, 95, 223',
-  },
-  L: {
-    shape: [
-      [0, 0, 1],
-      [1, 1, 1],
-    ],
-    color: '223, 173, 36',
-  },
-  O: {
-    shape: [
-      [1, 1],
-      [1, 1],
-    ],
-    color: '223, 217, 36',
-  },
-  S: {
-    shape: [
-      [0, 1, 1],
-      [1, 1, 0],
-    ],
-    color: '48, 211, 56',
-  },
-  T: {
-    shape: [
-      [1, 1, 1],
-      [0, 1, 0],
-    ],
-    color: '132, 61, 198',
-  },
-  Z: {
-    shape: [
-      [1, 1, 0],
-      [0, 1, 1],
-    ],
-    color: '227, 78, 78',
-  },
+  I: { shape: [[1, 1, 1, 1]], color: '80, 227, 230' },
+  J: { shape: [[1, 0, 0], [1, 1, 1]], color: '36, 95, 223' },
+  L: { shape: [[0, 0, 1], [1, 1, 1]], color: '223, 173, 36' },
+  O: { shape: [[1, 1], [1, 1]], color: '223, 217, 36' },
+  S: { shape: [[0, 1, 1], [1, 1, 0]], color: '48, 211, 56' },
+  T: { shape: [[1, 1, 1], [0, 1, 0]], color: '132, 61, 198' },
+  Z: { shape: [[1, 1, 0], [0, 1, 1]], color: '227, 78, 78' },
 };
 
-const randomTetromino = () => {
-  const tetrominoes = 'IJLOSTZ';
-  const randTetromino =
-    tetrominoes[Math.floor(Math.random() * tetrominoes.length)];
-  return {
-    key: randTetromino,
-    object: TETROMINOES[randTetromino as keyof typeof TETROMINOES],
-  };
+const TETROMINO_KEYS = Object.keys(TETROMINOES);
+
+const createEmptyBoard = () => 
+  Array(BOARD_HEIGHT).fill(null).map(() => Array(BOARD_WIDTH).fill(0));
+
+const getRandomTetromino = () => {
+  const key = TETROMINO_KEYS[Math.floor(Math.random() * TETROMINO_KEYS.length)];
+  return { key, ...TETROMINOES[key as keyof typeof TETROMINOES] };
 };
 
-const STAGE_WIDTH = 12;
-const STAGE_HEIGHT = 20;
-
-const createStage = (): STAGE =>
-  Array.from(Array(STAGE_HEIGHT), () => Array(STAGE_WIDTH).fill(0));
-
-const checkCollision = (
-  playerState: PLAYER,
-  gameStage: STAGE,
-  { x: moveX, y: moveY }: { x: number; y: number }
-) => {
-  for (let y = 0; y < playerState.tetromino.shape.length; y += 1) {
-    for (let x = 0; x < playerState.tetromino.shape[y].length; x += 1) {
-      if (playerState.tetromino.shape[y][x] !== 0) {
-        const newY = y + playerState.pos.y + moveY;
-        const newX = x + playerState.pos.x + moveX;
-        if (
-          !gameStage[newY] ||
-          !gameStage[newY][newX] ||
-          gameStage[newY][newX] !== 0
-        ) {
-          return true;
+const isValidPosition = (board: number[][], piece: number[][], x: number, y: number) => {
+  for (let py = 0; py < piece.length; py++) {
+    for (let px = 0; px < piece[py].length; px++) {
+      if (piece[py][px]) {
+        const newX = x + px;
+        const newY = y + py;
+        
+        if (newX < 0 || newX >= BOARD_WIDTH || newY >= BOARD_HEIGHT) {
+          return false;
+        }
+        
+        if (newY >= 0 && board[newY][newX]) {
+          return false;
         }
       }
     }
   }
-  return false;
+  return true;
+};
+
+const rotatePiece = (piece: number[][]) => {
+  const rotated = piece[0].map((_, index) => piece.map(row => row[index]).reverse());
+  return rotated;
 };
 
 export default function Tetris() {
-  const [stage, setStage] = useState(createStage());
-  const [player, setPlayer] = useState<PLAYER>({
-    pos: { x: 0, y: 0 },
-    tetromino: TETROMINOES[0],
-    tetrominoKey: 0,
-  });
+  const [board, setBoard] = useState(createEmptyBoard);
+  const [currentPiece, setCurrentPiece] = useState(() => getRandomTetromino());
+  const [position, setPosition] = useState({ x: Math.floor(BOARD_WIDTH / 2) - 1, y: 0 });
   const [score, setScore] = useState(0);
-  const [rows, setRows] = useState(0);
-  const [level, setLevel] = useState(0);
+  const [lines, setLines] = useState(0);
+  const [level, setLevel] = useState(1);
   const [gameOver, setGameOver] = useState(false);
-  const [dropTime, setDropTime] = useState<number | null>(null);
+  const [isPaused, setIsPaused] = useState(true);
 
-  const resetPlayer = useCallback(() => {
-    const newTetromino = randomTetromino();
-    setPlayer({
-      pos: { x: STAGE_WIDTH / 2 - 2, y: 0 },
-      tetromino: newTetromino.object,
-      tetrominoKey: newTetromino.key,
+  const clearLines = useCallback((newBoard: number[][]) => {
+    const fullLines: number[] = [];
+    
+    for (let y = BOARD_HEIGHT - 1; y >= 0; y--) {
+      if (newBoard[y].every(cell => cell !== 0)) {
+        fullLines.push(y);
+      }
+    }
+    
+    if (fullLines.length > 0) {
+      fullLines.forEach(lineIndex => {
+        newBoard.splice(lineIndex, 1);
+        newBoard.unshift(Array(BOARD_WIDTH).fill(0));
+      });
+      
+      setLines(prev => prev + fullLines.length);
+      setScore(prev => prev + fullLines.length * 100 * level);
+      
+      if (lines + fullLines.length >= level * 10) {
+        setLevel(prev => prev + 1);
+      }
+    }
+    
+    return newBoard;
+  }, [level, lines]);
+
+  const placePiece = useCallback(() => {
+    const newBoard = board.map(row => [...row]);
+    
+    currentPiece.shape.forEach((row, py) => {
+      row.forEach((cell, px) => {
+        if (cell) {
+          const x = position.x + px;
+          const y = position.y + py;
+          if (y >= 0) {
+            newBoard[y][x] = 1;
+          }
+        }
+      });
     });
-  }, []);
+    
+    const clearedBoard = clearLines(newBoard);
+    setBoard(clearedBoard);
+    
+    const newPiece = getRandomTetromino();
+    const newPosition = { x: Math.floor(BOARD_WIDTH / 2) - 1, y: 0 };
+    
+    if (!isValidPosition(clearedBoard, newPiece.shape, newPosition.x, newPosition.y)) {
+      setGameOver(true);
+      setIsPaused(true);
+      return;
+    }
+    
+    setCurrentPiece(newPiece);
+    setPosition(newPosition);
+  }, [board, currentPiece, position, clearLines]);
+
+  const moveDown = useCallback(() => {
+    if (gameOver || isPaused) return;
+    
+    const newY = position.y + 1;
+    
+    if (isValidPosition(board, currentPiece.shape, position.x, newY)) {
+      setPosition(prev => ({ ...prev, y: newY }));
+    } else {
+      placePiece();
+    }
+  }, [board, currentPiece.shape, position, gameOver, isPaused, placePiece]);
+
+  const move = useCallback((dx: number) => {
+    if (gameOver || isPaused) return;
+    
+    const newX = position.x + dx;
+    
+    if (isValidPosition(board, currentPiece.shape, newX, position.y)) {
+      setPosition(prev => ({ ...prev, x: newX }));
+    }
+  }, [board, currentPiece.shape, position, gameOver, isPaused]);
+
+  const rotate = useCallback(() => {
+    if (gameOver || isPaused) return;
+    
+    const rotated = rotatePiece(currentPiece.shape);
+    
+    if (isValidPosition(board, rotated, position.x, position.y)) {
+      setCurrentPiece(prev => ({ ...prev, shape: rotated }));
+    }
+  }, [board, currentPiece.shape, position, gameOver, isPaused]);
 
   const startGame = useCallback(() => {
-    setStage(createStage());
-    setDropTime(1000);
-    resetPlayer();
-    setGameOver(false);
+    setBoard(createEmptyBoard());
+    setCurrentPiece(getRandomTetromino());
+    setPosition({ x: Math.floor(BOARD_WIDTH / 2) - 1, y: 0 });
     setScore(0);
-    setRows(0);
-    setLevel(0);
-  }, [resetPlayer]);
-  
-  const movePlayer = useCallback((dir: number) => {
-    if (!checkCollision(player, stage, { x: dir, y: 0 })) {
-      setPlayer(prev => ({ ...prev, pos: { x: prev.pos.x + dir, y: prev.pos.y } }));
-    }
-  }, [player, stage]);
+    setLines(0);
+    setLevel(1);
+    setGameOver(false);
+    setIsPaused(false);
+  }, []);
 
-  const drop = useCallback(() => {
-    if (rows > (level + 1) * 10) {
-      setLevel(prev => prev + 1);
-      setDropTime(1000 / (level + 1) + 200);
-    }
-
-    if (!checkCollision(player, stage, { x: 0, y: 1 })) {
-      setPlayer(prev => ({ ...prev, pos: { x: prev.pos.x, y: prev.pos.y + 1 } }));
-    } else {
-      if (player.pos.y < 1) {
-        setGameOver(true);
-        setDropTime(null);
-        return;
-      }
-
-      setStage(prevStage => {
-        const newStage = prevStage.map(row => [...row]);
-        player.tetromino.shape.forEach((row, y) => {
-          row.forEach((value, x) => {
-            if (value !== 0) {
-              newStage[y + player.pos.y][x + player.pos.x] = player.tetrominoKey;
-            }
-          });
-        });
-
-        const sweepRows = (stageToSweep: STAGE) => {
-          const ack: STAGE = [];
-          let clearedRows = 0;
-          for (let i = 0; i < stageToSweep.length; i++) {
-            if (stageToSweep[i].findIndex(cell => cell === 0) === -1) {
-              clearedRows++;
-              ack.unshift(Array(stageToSweep[0].length).fill(0));
-              continue;
-            }
-            ack.push(stageToSweep[i]);
-          }
-          if (clearedRows > 0) {
-            setScore(prev => prev + LINE_POINTS[clearedRows - 1] * (level + 1));
-            setRows(prev => prev + clearedRows);
-          }
-          return ack;
-        };
-        return sweepRows(newStage);
-      });
-      resetPlayer();
-    }
-  }, [level, player, resetPlayer, rows, stage]);
-
-  const dropPlayer = useCallback(() => {
-    setDropTime(null);
-    drop();
-  }, [drop]);
-  
-  const keyUp = useCallback(({ keyCode }: { keyCode: number }) => {
-    if (!gameOver) {
-      if (keyCode === 40) {
-        setDropTime(1000 / (level + 1) + 200);
-      }
-    }
-  }, [gameOver, level]);
-  
-  const playerRotate = useCallback(() => {
-    const clonedPlayer = JSON.parse(JSON.stringify(player));
+  const handleKeyPress = useCallback((e: KeyboardEvent) => {
+    if (gameOver) return;
     
-    const rotate = (matrix: number[][]) => {
-        const transposedMatrix = matrix[0].map((_, colIndex) => matrix.map(row => row[colIndex]));
-        return transposedMatrix.map(row => row.reverse());
-    };
-    clonedPlayer.tetromino.shape = rotate(clonedPlayer.tetromino.shape);
-
-    const pos = clonedPlayer.pos.x;
-    let offset = 1;
-    while (checkCollision(clonedPlayer, stage, { x: 0, y: 0 })) {
-      clonedPlayer.pos.x += offset;
-      offset = -(offset + (offset > 0 ? 1 : -1));
-      if (offset > clonedPlayer.tetromino.shape[0].length) {
-        clonedPlayer.tetromino.shape = rotate(rotate(rotate(clonedPlayer.tetromino.shape)));
-        clonedPlayer.pos.x = pos;
-        return;
-      }
+    switch (e.code) {
+      case 'ArrowLeft':
+        e.preventDefault();
+        move(-1);
+        break;
+      case 'ArrowRight':
+        e.preventDefault();
+        move(1);
+        break;
+      case 'ArrowDown':
+        e.preventDefault();
+        moveDown();
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        rotate();
+        break;
+      case 'Space':
+        e.preventDefault();
+        setIsPaused(prev => !prev);
+        break;
     }
-    setPlayer(clonedPlayer);
-  }, [player, stage]);
+  }, [gameOver, move, moveDown, rotate]);
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [handleKeyPress]);
+
+  useEffect(() => {
+    if (!gameOver && !isPaused) {
+      const interval = setInterval(moveDown, Math.max(100, 1000 - (level - 1) * 100));
+      return () => clearInterval(interval);
+    }
+  }, [moveDown, gameOver, isPaused, level]);
+
+  const displayBoard = board.map(row => [...row]);
   
-  const move = useCallback(({ keyCode }: { keyCode: number }) => {
-    if (!gameOver) {
-      if (keyCode === 37) {
-        movePlayer(-1);
-      } else if (keyCode === 39) {
-        movePlayer(1);
-      } else if (keyCode === 40) {
-        dropPlayer();
-      } else if (keyCode === 38) {
-        playerRotate();
-      }
-    }
-  }, [gameOver, movePlayer, dropPlayer, playerRotate]);
-
-  useEffect(() => {
-    startGame();
-  }, [startGame]);
-
-  useEffect(() => {
-    if (!gameOver && dropTime) {
-        const interval = setInterval(drop, dropTime);
-        return () => clearInterval(interval);
-    }
-  }, [gameOver, dropTime, drop]);
-
-  const displayStage = createStage();
-  stage.forEach((row, y) => {
-    row.forEach((cell, x) => {
-      displayStage[y][x] = cell;
-    });
-  });
-
-  if (player.tetrominoKey !== 0) {
-    player.tetromino.shape.forEach((row, y) => {
-        row.forEach((value, x) => {
-            if (value !== 0) {
-                const yPos = y + player.pos.y;
-                const xPos = x + player.pos.x;
-                if(displayStage[yPos]){
-                    displayStage[yPos][xPos] = player.tetrominoKey;
-                }
-            }
-        });
+  if (!gameOver && !isPaused) {
+    currentPiece.shape.forEach((row, py) => {
+      row.forEach((cell, px) => {
+        if (cell) {
+          const x = position.x + px;
+          const y = position.y + py;
+          if (y >= 0 && y < BOARD_HEIGHT && x >= 0 && x < BOARD_WIDTH) {
+            displayBoard[y][x] = 2;
+          }
+        }
+      });
     });
   }
 
   return (
-    <div
-      className="flex flex-col items-center justify-center min-h-screen bg-gray-800 text-white"
-      role="button"
-      tabIndex={0}
-      onKeyDown={move}
-      onKeyUp={keyUp}
-      autoFocus
-    >
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-800 text-white p-4">
       <h1 className="text-4xl font-bold mb-4">Tetris</h1>
-      <div className="flex gap-8">
-        <div
-          className="grid border-2 border-gray-500"
+      
+      <div className="flex gap-8 items-start">
+        <div 
+          className="grid border-2 border-gray-500 bg-gray-900"
           style={{
-            gridTemplateColumns: `repeat(${STAGE_WIDTH}, 25px)`,
-            gridTemplateRows: `repeat(${STAGE_HEIGHT}, 25px)`,
+            gridTemplateColumns: `repeat(${BOARD_WIDTH}, 30px)`,
+            gridTemplateRows: `repeat(${BOARD_HEIGHT}, 30px)`,
           }}
         >
-          {displayStage.map((row, y) =>
+          {displayBoard.map((row, y) =>
             row.map((cell, x) => (
               <div
                 key={`${y}-${x}`}
-                className="w-[25px] h-[25px] border border-gray-700"
+                className="w-[30px] h-[30px] border border-gray-700"
                 style={{
-                  backgroundColor: cell !== 0 ? `rgba(${TETROMINOES[cell as keyof typeof TETROMINOES].color}, 0.8)` : 'rgb(31 41 55)',
+                  backgroundColor: cell === 1 ? '#4A90E2' : cell === 2 ? '#E24A4A' : '#1F2937',
                 }}
               />
             ))
           )}
         </div>
-        <div className="flex flex-col gap-4">
-            {gameOver ? (
-                <div className='text-red-500 font-bold'>GAME OVER</div>
-            ) : (
-                <>
-                    <div className='p-4 border border-gray-500 rounded-lg'>
-                        <h2 className="text-xl font-bold">Score</h2>
-                        <p className="text-2xl">{score}</p>
-                    </div>
-                    <div className='p-4 border border-gray-500 rounded-lg'>
-                        <h2 className="text-xl font-bold">Rows</h2>
-                        <p className="text-2xl">{rows}</p>
-                    </div>
-                    <div className='p-4 border border-gray-500 rounded-lg'>
-                        <h2 className="text-xl font-bold">Level</h2>
-                        <p className="text-2xl">{level}</p>
-                    </div>
-                </>
-            )}
-            <button onClick={startGame} className="mt-4 px-4 py-2 bg-blue-500 rounded">Start Game</button>
-            <div className='mt-4 p-4 border border-gray-500 rounded-lg text-sm'>
-              <h2 className="text-lg font-bold mb-2">조작법</h2>
-              <p>이동: ← →</p>
-              <p>회전: ↑</p>
-              <p>내리기: ↓</p>
+        
+        <div className="flex flex-col gap-4 min-w-[200px]">
+          <div className="p-4 border border-gray-500 rounded-lg">
+            <h2 className="text-xl font-bold mb-2">Score</h2>
+            <p className="text-2xl">{score}</p>
+          </div>
+          
+          <div className="p-4 border border-gray-500 rounded-lg">
+            <h2 className="text-xl font-bold mb-2">Lines</h2>
+            <p className="text-2xl">{lines}</p>
+          </div>
+          
+          <div className="p-4 border border-gray-500 rounded-lg">
+            <h2 className="text-xl font-bold mb-2">Level</h2>
+            <p className="text-2xl">{level}</p>
+          </div>
+          
+          {gameOver && (
+            <div className="p-4 border border-red-500 rounded-lg bg-red-900/20">
+              <h2 className="text-xl font-bold text-red-400">Game Over!</h2>
             </div>
+          )}
+          
+          <button 
+            onClick={startGame}
+            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-bold"
+          >
+            {gameOver ? 'New Game' : 'Restart'}
+          </button>
+          
+          <div className="p-4 border border-gray-500 rounded-lg text-sm">
+            <h3 className="font-bold mb-2">조작법</h3>
+            <p>← → : 이동</p>
+            <p>↑ : 회전</p>
+            <p>↓ : 빠르게 내리기</p>
+            <p>Space : 일시정지</p>
+          </div>
         </div>
       </div>
     </div>
