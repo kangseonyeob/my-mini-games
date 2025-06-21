@@ -87,6 +87,29 @@ const STAGE_HEIGHT = 20;
 const createStage = (): STAGE =>
   Array.from(Array(STAGE_HEIGHT), () => Array(STAGE_WIDTH).fill(0));
 
+const checkCollision = (
+  playerState: PLAYER,
+  gameStage: STAGE,
+  { x: moveX, y: moveY }: { x: number; y: number }
+) => {
+  for (let y = 0; y < playerState.tetromino.shape.length; y += 1) {
+    for (let x = 0; x < playerState.tetromino.shape[y].length; x += 1) {
+      if (playerState.tetromino.shape[y][x] !== 0) {
+        const newY = y + playerState.pos.y + moveY;
+        const newX = x + playerState.pos.x + moveX;
+        if (
+          !gameStage[newY] ||
+          !gameStage[newY][newX] ||
+          gameStage[newY][newX] !== 0
+        ) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+};
+
 export default function Tetris() {
   const [stage, setStage] = useState(createStage());
   const [player, setPlayer] = useState<PLAYER>({
@@ -109,29 +132,6 @@ export default function Tetris() {
     });
   }, []);
 
-  const checkCollision = (
-    playerState: PLAYER,
-    gameStage: STAGE,
-    { x: moveX, y: moveY }: { x: number; y: number }
-  ) => {
-    for (let y = 0; y < playerState.tetromino.shape.length; y += 1) {
-      for (let x = 0; x < playerState.tetromino.shape[y].length; x += 1) {
-        if (playerState.tetromino.shape[y][x] !== 0) {
-          const newY = y + playerState.pos.y + moveY;
-          const newX = x + playerState.pos.x + moveX;
-          if (
-            !gameStage[newY] ||
-            !gameStage[newY][newX] ||
-            gameStage[newY][newX] !== 0
-          ) {
-            return true;
-          }
-        }
-      }
-    }
-    return false;
-  };
-  
   const startGame = useCallback(() => {
     setStage(createStage());
     setDropTime(1000);
@@ -141,14 +141,14 @@ export default function Tetris() {
     setRows(0);
     setLevel(0);
   }, [resetPlayer]);
-
-  const movePlayer = (dir: number) => {
+  
+  const movePlayer = useCallback((dir: number) => {
     if (!checkCollision(player, stage, { x: dir, y: 0 })) {
       setPlayer(prev => ({ ...prev, pos: { x: prev.pos.x + dir, y: prev.pos.y } }));
     }
-  };
+  }, [player, stage]);
 
-  const drop = () => {
+  const drop = useCallback(() => {
     if (rows > (level + 1) * 10) {
       setLevel(prev => prev + 1);
       setDropTime(1000 / (level + 1) + 200);
@@ -194,33 +194,33 @@ export default function Tetris() {
       });
       resetPlayer();
     }
-  };
+  }, [level, player, resetPlayer, rows, stage]);
 
-  const dropPlayer = () => {
+  const dropPlayer = useCallback(() => {
     setDropTime(null);
     drop();
-  };
+  }, [drop]);
   
-  const keyUp = ({ keyCode }: { keyCode: number }) => {
+  const keyUp = useCallback(({ keyCode }: { keyCode: number }) => {
     if (!gameOver) {
       if (keyCode === 40) {
         setDropTime(1000 / (level + 1) + 200);
       }
     }
-  };
+  }, [gameOver, level]);
   
-  const rotate = (matrix: number[][]) => {
-    const transposedMatrix = matrix[0].map((_, colIndex) => matrix.map(row => row[colIndex]));
-    return transposedMatrix.map(row => row.reverse());
-  };
-
-  const playerRotate = (gameStage: STAGE) => {
+  const playerRotate = useCallback(() => {
     const clonedPlayer = JSON.parse(JSON.stringify(player));
+    
+    const rotate = (matrix: number[][]) => {
+        const transposedMatrix = matrix[0].map((_, colIndex) => matrix.map(row => row[colIndex]));
+        return transposedMatrix.map(row => row.reverse());
+    };
     clonedPlayer.tetromino.shape = rotate(clonedPlayer.tetromino.shape);
 
     const pos = clonedPlayer.pos.x;
     let offset = 1;
-    while (checkCollision(clonedPlayer, gameStage, { x: 0, y: 0 })) {
+    while (checkCollision(clonedPlayer, stage, { x: 0, y: 0 })) {
       clonedPlayer.pos.x += offset;
       offset = -(offset + (offset > 0 ? 1 : -1));
       if (offset > clonedPlayer.tetromino.shape[0].length) {
@@ -230,9 +230,9 @@ export default function Tetris() {
       }
     }
     setPlayer(clonedPlayer);
-  };
+  }, [player, stage]);
   
-  const move = ({ keyCode }: { keyCode: number }) => {
+  const move = useCallback(({ keyCode }: { keyCode: number }) => {
     if (!gameOver) {
       if (keyCode === 37) {
         movePlayer(-1);
@@ -241,26 +241,29 @@ export default function Tetris() {
       } else if (keyCode === 40) {
         dropPlayer();
       } else if (keyCode === 38) {
-        playerRotate(stage);
+        playerRotate();
       }
     }
-  };
+  }, [gameOver, movePlayer, dropPlayer, playerRotate]);
 
   useEffect(() => {
     startGame();
   }, [startGame]);
 
   useEffect(() => {
-    if (!gameOver) {
-        const interval = setInterval(() => {
-            if(dropTime) drop();
-        }, dropTime || 0);
-
+    if (!gameOver && dropTime) {
+        const interval = setInterval(drop, dropTime);
         return () => clearInterval(interval);
     }
-}, [gameOver, dropTime, drop]);
+  }, [gameOver, dropTime, drop]);
 
-  const displayStage = stage.map(row => [...row]) as STAGE;
+  const displayStage = createStage();
+  stage.forEach((row, y) => {
+    row.forEach((cell, x) => {
+      displayStage[y][x] = cell;
+    });
+  });
+
   if (player.tetrominoKey !== 0) {
     player.tetromino.shape.forEach((row, y) => {
         row.forEach((value, x) => {
@@ -280,11 +283,11 @@ export default function Tetris() {
       className="flex flex-col items-center justify-center min-h-screen bg-gray-800 text-white"
       role="button"
       tabIndex={0}
-      onKeyDown={e => move(e)}
+      onKeyDown={move}
       onKeyUp={keyUp}
       autoFocus
     >
-      <h1 className="text-4xl font-bold mb-4">Tetris (수정 최종본)</h1>
+      <h1 className="text-4xl font-bold mb-4">Tetris</h1>
       <div className="flex gap-8">
         <div
           className="grid border-2 border-gray-500"
