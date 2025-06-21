@@ -53,7 +53,7 @@ const rotatePiece = (piece: number[][]) => {
 export default function Tetris() {
   const [board, setBoard] = useState(createEmptyBoard);
   const [currentPiece, setCurrentPiece] = useState(() => getRandomTetromino());
-  const [position, setPosition] = useState({ x: Math.floor(BOARD_WIDTH / 2) - 1, y: 0 });
+  const [position, setPosition] = useState({ x: 3, y: -1 });
   const [score, setScore] = useState(0);
   const [lines, setLines] = useState(0);
   const [level, setLevel] = useState(1);
@@ -94,7 +94,7 @@ export default function Tetris() {
         if (cell) {
           const x = position.x + px;
           const y = position.y + py;
-          if (y >= 0) {
+          if (y >= 0 && y < BOARD_HEIGHT && x >= 0 && x < BOARD_WIDTH) {
             newBoard[y][x] = 1;
           }
         }
@@ -105,7 +105,7 @@ export default function Tetris() {
     setBoard(clearedBoard);
     
     const newPiece = getRandomTetromino();
-    const newPosition = { x: Math.floor(BOARD_WIDTH / 2) - 1, y: 0 };
+    const newPosition = { x: 3, y: -1 };
     
     if (!isValidPosition(clearedBoard, newPiece.shape, newPosition.x, newPosition.y)) {
       setGameOver(true);
@@ -125,7 +125,12 @@ export default function Tetris() {
     if (isValidPosition(board, currentPiece.shape, position.x, newY)) {
       setPosition(prev => ({ ...prev, y: newY }));
     } else {
-      placePiece();
+      if (position.y >= -1) {
+        placePiece();
+      } else {
+        setGameOver(true);
+        setIsPaused(true);
+      }
     }
   }, [board, currentPiece.shape, position, gameOver, isPaused, placePiece]);
 
@@ -150,9 +155,13 @@ export default function Tetris() {
   }, [board, currentPiece.shape, position, gameOver, isPaused]);
 
   const startGame = useCallback(() => {
-    setBoard(createEmptyBoard());
-    setCurrentPiece(getRandomTetromino());
-    setPosition({ x: Math.floor(BOARD_WIDTH / 2) - 1, y: 0 });
+    const newBoard = createEmptyBoard();
+    const newPiece = getRandomTetromino();
+    const newPosition = { x: 3, y: -1 };
+    
+    setBoard(newBoard);
+    setCurrentPiece(newPiece);
+    setPosition(newPosition);
     setScore(0);
     setLines(0);
     setLevel(1);
@@ -201,7 +210,7 @@ export default function Tetris() {
 
   const displayBoard = board.map(row => [...row]);
   
-  if (!gameOver && !isPaused) {
+  if (!gameOver && !isPaused && position.y > -2) {
     currentPiece.shape.forEach((row, py) => {
       row.forEach((cell, px) => {
         if (cell) {
@@ -262,11 +271,17 @@ export default function Tetris() {
             </div>
           )}
           
+          {isPaused && !gameOver && (
+            <div className="p-4 border border-yellow-500 rounded-lg bg-yellow-900/20">
+              <h2 className="text-xl font-bold text-yellow-400">Paused</h2>
+            </div>
+          )}
+          
           <button 
             onClick={startGame}
             className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-bold"
           >
-            {gameOver ? 'New Game' : 'Restart'}
+            {gameOver ? 'New Game' : 'Start Game'}
           </button>
           
           <div className="p-4 border border-gray-500 rounded-lg text-sm">
