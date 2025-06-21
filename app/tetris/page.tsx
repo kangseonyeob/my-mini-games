@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import Link from 'next/link';
 
 const BOARD_WIDTH = 10;
 const BOARD_HEIGHT = 20;
@@ -530,109 +531,147 @@ export default function Tetris() {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-800 text-white p-4">
-      <h1 className="text-4xl font-bold mb-4">Tetris</h1>
+    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 flex flex-col justify-center items-center text-white p-4">
+      {/* Header */}
+      <div className="text-center mb-8">
+        <h1 className="text-5xl font-extrabold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
+          Tetris
+        </h1>
+        <p className="text-xl text-gray-400">
+          전설적인 블록 퍼즐 게임을 즐겨보세요!
+        </p>
+      </div>
+
+      {/* Game Container */}
+      <div className="w-full max-w-6xl bg-gray-800 bg-opacity-80 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-700 p-8">
+        <div className="flex gap-8 items-start justify-center">
+          {/* Game Board */}
+          <div className="flex flex-col items-center">
+            <div 
+              className="grid border-2 border-gray-500 bg-gray-900 rounded-lg overflow-hidden shadow-lg"
+              style={{
+                gridTemplateColumns: `repeat(${BOARD_WIDTH}, 30px)`,
+                gridTemplateRows: `repeat(${BOARD_HEIGHT}, 30px)`,
+              }}
+            >
+              {displayBoard.map((row, y) =>
+                row.map((cell, x) => (
+                  <div
+                    key={`${y}-${x}`}
+                    className="w-[30px] h-[30px] border border-gray-700"
+                    style={{
+                      backgroundColor: cell === 1 ? '#4A90E2' : cell === 2 ? '#E24A4A' : '#1F2937',
+                    }}
+                  />
+                ))
+              )}
+            </div>
+          </div>
+          
+          {/* Game Info Panel */}
+          <div className="flex flex-col gap-4 min-w-[250px]">
+            {/* Score Cards */}
+            <div className="grid grid-cols-1 gap-4">
+              <div className="p-4 bg-gray-700 bg-opacity-60 rounded-xl border border-gray-600">
+                <h2 className="text-lg font-bold mb-2 text-blue-400">점수</h2>
+                <p className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-blue-500">{score.toLocaleString()}</p>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 bg-gray-700 bg-opacity-60 rounded-xl border border-gray-600">
+                  <h2 className="text-sm font-bold mb-2 text-purple-400">라인</h2>
+                  <p className="text-2xl font-bold text-white">{lines}</p>
+                </div>
+                
+                <div className="p-4 bg-gray-700 bg-opacity-60 rounded-xl border border-gray-600">
+                  <h2 className="text-sm font-bold mb-2 text-yellow-400">레벨</h2>
+                  <p className="text-2xl font-bold text-white">{level}</p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Status Messages */}
+            {gameOver && (
+              <div className="p-4 border border-red-500 rounded-xl bg-red-900/30 backdrop-blur-sm">
+                <h2 className="text-xl font-bold text-red-400 text-center">🎮 Game Over!</h2>
+                <p className="text-center text-red-300 mt-2">다시 도전해보세요!</p>
+              </div>
+            )}
+            
+            {isPaused && !gameOver && (
+              <div className="p-4 border border-yellow-500 rounded-xl bg-yellow-900/30 backdrop-blur-sm">
+                <h2 className="text-xl font-bold text-yellow-400 text-center">⏸️ 일시정지</h2>
+                <p className="text-center text-yellow-300 mt-2">ESC를 눌러 계속하세요</p>
+              </div>
+            )}
+            
+            {/* Control Buttons */}
+            <div className="flex flex-col gap-3">
+              <button 
+                onClick={startGame}
+                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 rounded-xl font-bold transform hover:scale-105 transition-all duration-200 shadow-lg"
+              >
+                {gameOver ? '🎮 새 게임' : '🚀 게임 시작'}
+              </button>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <button 
+                  onClick={() => setIsMuted(!isMuted)}
+                  className={`px-4 py-2 rounded-xl font-bold transition-all duration-200 ${
+                    isMuted 
+                      ? 'bg-red-600 hover:bg-red-700 text-white' 
+                      : 'bg-green-600 hover:bg-green-700 text-white'
+                  }`}
+                >
+                  {isMuted ? '🔇' : '🔊'}
+                </button>
+                
+                <button 
+                  onClick={() => {
+                    if (isBGMPlaying) {
+                      stopBGM();
+                    } else {
+                      startBGM();
+                    }
+                  }}
+                  className={`px-4 py-2 rounded-xl font-bold transition-all duration-200 ${
+                    isBGMPlaying 
+                      ? 'bg-purple-600 hover:bg-purple-700 text-white' 
+                      : 'bg-gray-600 hover:bg-gray-700 text-white'
+                  }`}
+                  disabled={isMuted}
+                >
+                  {isBGMPlaying ? '🎵' : '🎵'}
+                </button>
+              </div>
+            </div>
+            
+            {isBGMPlaying && (
+              <div className="p-3 border border-purple-500 rounded-xl bg-purple-900/30 backdrop-blur-sm text-center">
+                <span className="text-purple-400 text-sm">🎵 BGM 재생 중...</span>
+              </div>
+            )}
+            
+            {/* Controls Guide */}
+            <div className="p-4 bg-gray-700 bg-opacity-60 rounded-xl border border-gray-600">
+              <h3 className="font-bold mb-3 text-center text-blue-400">🎮 조작법</h3>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div className="text-gray-300">← → 이동</div>
+                <div className="text-gray-300">↑ 회전</div>
+                <div className="text-gray-300">↓ 빠른낙하</div>
+                <div className="text-gray-300">Space 하드드롭</div>
+                <div className="text-gray-300 col-span-2 text-center mt-2">ESC 일시정지</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
       
-      <div className="flex gap-8 items-start">
-        <div 
-          className="grid border-2 border-gray-500 bg-gray-900"
-          style={{
-            gridTemplateColumns: `repeat(${BOARD_WIDTH}, 30px)`,
-            gridTemplateRows: `repeat(${BOARD_HEIGHT}, 30px)`,
-          }}
-        >
-          {displayBoard.map((row, y) =>
-            row.map((cell, x) => (
-              <div
-                key={`${y}-${x}`}
-                className="w-[30px] h-[30px] border border-gray-700"
-                style={{
-                  backgroundColor: cell === 1 ? '#4A90E2' : cell === 2 ? '#E24A4A' : '#1F2937',
-                }}
-              />
-            ))
-          )}
-        </div>
-        
-        <div className="flex flex-col gap-4 min-w-[200px]">
-          <div className="p-4 border border-gray-500 rounded-lg">
-            <h2 className="text-xl font-bold mb-2">Score</h2>
-            <p className="text-2xl">{score}</p>
-          </div>
-          
-          <div className="p-4 border border-gray-500 rounded-lg">
-            <h2 className="text-xl font-bold mb-2">Lines</h2>
-            <p className="text-2xl">{lines}</p>
-          </div>
-          
-          <div className="p-4 border border-gray-500 rounded-lg">
-            <h2 className="text-xl font-bold mb-2">Level</h2>
-            <p className="text-2xl">{level}</p>
-          </div>
-          
-          {gameOver && (
-            <div className="p-4 border border-red-500 rounded-lg bg-red-900/20">
-              <h2 className="text-xl font-bold text-red-400">Game Over!</h2>
-            </div>
-          )}
-          
-          {isPaused && !gameOver && (
-            <div className="p-4 border border-yellow-500 rounded-lg bg-yellow-900/20">
-              <h2 className="text-xl font-bold text-yellow-400">Paused</h2>
-            </div>
-          )}
-          
-          <button 
-            onClick={startGame}
-            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-bold"
-          >
-            {gameOver ? 'New Game' : 'Start Game'}
-          </button>
-          
-          <button 
-            onClick={() => setIsMuted(!isMuted)}
-            className={`px-6 py-3 rounded-lg font-bold ${
-              isMuted 
-                ? 'bg-red-600 hover:bg-red-700' 
-                : 'bg-green-600 hover:bg-green-700'
-            }`}
-          >
-            {isMuted ? '🔇 음소거' : '🔊 소리켜기'}
-          </button>
-          
-          <button 
-            onClick={() => {
-              if (isBGMPlaying) {
-                stopBGM();
-              } else {
-                startBGM();
-              }
-            }}
-            className={`px-6 py-3 rounded-lg font-bold ${
-              isBGMPlaying 
-                ? 'bg-purple-600 hover:bg-purple-700' 
-                : 'bg-gray-600 hover:bg-gray-700'
-            }`}
-            disabled={isMuted}
-          >
-            {isBGMPlaying ? '🎵 BGM 정지' : '🎵 BGM 시작'}
-          </button>
-          
-          {isBGMPlaying && (
-            <div className="p-2 border border-purple-500 rounded-lg bg-purple-900/20 text-center">
-              <span className="text-purple-400 text-sm">🎵 BGM 재생 중...</span>
-            </div>
-          )}
-          
-          <div className="p-4 border border-gray-500 rounded-lg text-sm">
-            <h3 className="font-bold mb-2">조작법</h3>
-            <p>← → : 이동</p>
-            <p>↑ : 회전</p>
-            <p>↓ : 빠르게 내리기</p>
-            <p>Space : 하드 드롭</p>
-            <p>ESC : 일시정지</p>
-          </div>
-        </div>
+      {/* Footer */}
+      <div className="mt-8 text-center">
+        <Link href="/" className="inline-flex items-center px-6 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl font-bold transition-all duration-200 transform hover:scale-105">
+          🏠 홈으로 돌아가기
+        </Link>
       </div>
     </div>
   );
