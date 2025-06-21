@@ -357,6 +357,84 @@ export default function Tetris() {
     }
   }, [board, currentPiece.shape, position, gameOver, isPaused, playRotateSound]);
 
+  const hardDrop = useCallback(() => {
+    if (gameOver || isPaused) return;
+    
+    let dropDistance = 0;
+    let newY = position.y;
+    
+    // 블록이 바닥이나 다른 블록에 닿을 때까지 계속 내려가기
+    while (isValidPosition(board, currentPiece.shape, position.x, newY + 1)) {
+      newY++;
+      dropDistance++;
+    }
+    
+    if (dropDistance > 0) {
+      setPosition(prev => ({ ...prev, y: newY }));
+      // 하드 드롭 점수 추가 (거리 * 2)
+      setScore(prev => prev + dropDistance * 2);
+      playDropSound();
+      
+      // 즉시 블록을 고정시키기 위해 moveDown 호출
+      setTimeout(() => {
+        if (isValidPosition(board, currentPiece.shape, position.x, newY + 1)) {
+          return;
+        }
+        
+        // 블록을 보드에 고정
+        const newBoard = board.map(row => [...row]);
+        currentPiece.shape.forEach((row, py) => {
+          row.forEach((cell, px) => {
+            if (cell) {
+              const x = position.x + px;
+              const y = newY + py;
+              if (y >= 0 && y < BOARD_HEIGHT && x >= 0 && x < BOARD_WIDTH) {
+                newBoard[y][x] = 1;
+              }
+            }
+          });
+        });
+        
+        // 완성된 라인 찾기
+        const completedLines = [];
+        for (let y = BOARD_HEIGHT - 1; y >= 0; y--) {
+          if (newBoard[y].every(cell => cell === 1)) {
+            completedLines.push(y);
+          }
+        }
+        
+        // 완성된 라인 제거
+        if (completedLines.length > 0) {
+          completedLines.forEach(lineY => {
+            newBoard.splice(lineY, 1);
+            newBoard.unshift(Array(BOARD_WIDTH).fill(0));
+          });
+          
+          const lineScore = [0, 100, 300, 500, 800][completedLines.length] * level;
+          setScore(prev => prev + lineScore);
+          setLines(prev => prev + completedLines.length);
+          setLevel(prev => Math.floor((prev * 10 + completedLines.length) / 10) + 1);
+          playLineClearSound();
+        }
+        
+        setBoard(newBoard);
+        
+        // 새로운 테트로미노 생성
+        const newPiece = getRandomTetromino();
+        const newPosition = { x: 3, y: -1 };
+        
+        if (!isValidPosition(newBoard, newPiece.shape, newPosition.x, newPosition.y)) {
+          setGameOver(true);
+          stopBGM();
+          playGameOverSound();
+        } else {
+          setCurrentPiece(newPiece);
+          setPosition(newPosition);
+        }
+      }, 50);
+    }
+  }, [board, currentPiece.shape, position, gameOver, isPaused, level, playDropSound, playLineClearSound, playGameOverSound, stopBGM]);
+
   const startGame = useCallback(() => {
     const newBoard = createEmptyBoard();
     const newPiece = getRandomTetromino();
@@ -414,10 +492,14 @@ export default function Tetris() {
         break;
       case 'Space':
         e.preventDefault();
+        hardDrop();
+        break;
+      case 'Escape':
+        e.preventDefault();
         togglePause();
         break;
     }
-  }, [gameOver, move, moveDown, rotate, togglePause]);
+  }, [gameOver, move, moveDown, rotate, hardDrop, togglePause]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyPress);
@@ -547,7 +629,8 @@ export default function Tetris() {
             <p>← → : 이동</p>
             <p>↑ : 회전</p>
             <p>↓ : 빠르게 내리기</p>
-            <p>Space : 일시정지</p>
+            <p>Space : 하드 드롭</p>
+            <p>ESC : 일시정지</p>
           </div>
         </div>
       </div>
