@@ -120,10 +120,10 @@ export default function Tetris() {
 
   const rotate = (matrix: PLAYER['tetromino']['shape'], dir: number) => {
     // Make the rows to become cols (transpose)
-    const rotatedTetro = matrix.map((_, index) => matrix.map(col => col[index]));
+    const transposedMatrix = matrix[0].map((_, colIndex) => matrix.map(row => row[colIndex]));
     // Reverse each row to get a rotated matrix
-    if (dir > 0) return rotatedTetro.map(row => row.reverse());
-    return rotatedTetro.reverse();
+    if (dir > 0) return transposedMatrix.map(row => row.reverse());
+    return transposedMatrix.reverse();
   };
 
   const playerRotate = (stage: STAGE, dir: number) => {
