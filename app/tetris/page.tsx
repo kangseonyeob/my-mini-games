@@ -32,17 +32,15 @@ const TETROMINOES = {
   },
   J: {
     shape: [
-      [0, 1, 0],
-      [0, 1, 0],
-      [1, 1, 0],
+      [1, 0, 0],
+      [1, 1, 1],
     ],
     color: '36, 95, 223',
   },
   L: {
     shape: [
-      [0, 1, 0],
-      [0, 1, 0],
-      [0, 1, 1],
+      [0, 0, 1],
+      [1, 1, 1],
     ],
     color: '223, 173, 36',
   },
@@ -170,7 +168,7 @@ export default function Tetris() {
   const updatePlayerPos = ({ x, y, collided }: { x: number; y: number; collided: boolean }) => {
     setPlayer(prev => ({
       ...prev,
-      pos: { x: (prev.pos.x += x), y: (prev.pos.y += y) },
+      pos: { x: prev.pos.x + x, y: prev.pos.y + y },
       collided,
     }));
   };
