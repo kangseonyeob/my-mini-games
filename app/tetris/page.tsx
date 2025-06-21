@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 const BOARD_WIDTH = 10;
 const BOARD_HEIGHT = 20;
@@ -50,6 +50,126 @@ const rotatePiece = (piece: number[][]) => {
   return rotated;
 };
 
+// Audio hook for sound management
+const useAudio = () => {
+  const [isMuted, setIsMuted] = useState(false);
+  const bgmRef = useRef<HTMLAudioElement | null>(null);
+  
+  const playSound = useCallback((frequency: number, duration: number, type: 'sine' | 'square' | 'triangle' = 'sine') => {
+    if (isMuted) return;
+    
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+      oscillator.type = type;
+      
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + duration);
+    } catch (error) {
+      console.log('Audio not supported');
+    }
+  }, [isMuted]);
+
+  const playMoveSound = useCallback(() => {
+    playSound(200, 0.1, 'square');
+  }, [playSound]);
+
+  const playRotateSound = useCallback(() => {
+    playSound(300, 0.1, 'triangle');
+  }, [playSound]);
+
+  const playDropSound = useCallback(() => {
+    playSound(150, 0.2, 'sine');
+  }, [playSound]);
+
+  const playLineClearSound = useCallback(() => {
+    // Play ascending notes for line clear
+    setTimeout(() => playSound(400, 0.1), 0);
+    setTimeout(() => playSound(500, 0.1), 100);
+    setTimeout(() => playSound(600, 0.1), 200);
+    setTimeout(() => playSound(700, 0.2), 300);
+  }, [playSound]);
+
+  const playGameOverSound = useCallback(() => {
+    // Play descending notes for game over
+    setTimeout(() => playSound(400, 0.3), 0);
+    setTimeout(() => playSound(300, 0.3), 300);
+    setTimeout(() => playSound(200, 0.5), 600);
+  }, [playSound]);
+
+  const startBGM = useCallback(() => {
+    if (isMuted) return;
+    
+    // Create a simple melody using Web Audio API
+    const playBGMLoop = () => {
+      if (isMuted) return;
+      
+      const melody = [
+        { freq: 330, duration: 0.5 }, // E
+        { freq: 247, duration: 0.25 }, // B
+        { freq: 262, duration: 0.25 }, // C
+        { freq: 294, duration: 0.5 }, // D
+        { freq: 262, duration: 0.25 }, // C
+        { freq: 247, duration: 0.25 }, // B
+        { freq: 220, duration: 0.5 }, // A
+        { freq: 220, duration: 0.25 }, // A
+        { freq: 262, duration: 0.25 }, // C
+        { freq: 330, duration: 0.5 }, // E
+        { freq: 294, duration: 0.25 }, // D
+        { freq: 262, duration: 0.25 }, // C
+        { freq: 247, duration: 1 }, // B
+      ];
+      
+      let currentTime = 0;
+      melody.forEach((note, index) => {
+        setTimeout(() => {
+          if (!isMuted) {
+            playSound(note.freq, note.duration, 'triangle');
+          }
+        }, currentTime * 1000);
+        currentTime += note.duration;
+      });
+      
+      // Loop the melody
+      setTimeout(() => {
+        if (!isMuted) {
+          playBGMLoop();
+        }
+      }, currentTime * 1000 + 1000);
+    };
+    
+    playBGMLoop();
+  }, [isMuted, playSound]);
+
+  const stopBGM = useCallback(() => {
+    if (bgmRef.current) {
+      bgmRef.current.pause();
+      bgmRef.current.currentTime = 0;
+    }
+  }, []);
+
+  return {
+    isMuted,
+    setIsMuted,
+    playMoveSound,
+    playRotateSound,
+    playDropSound,
+    playLineClearSound,
+    playGameOverSound,
+    startBGM,
+    stopBGM,
+  };
+};
+
 export default function Tetris() {
   const [board, setBoard] = useState(createEmptyBoard);
   const [currentPiece, setCurrentPiece] = useState(() => getRandomTetromino());
@@ -59,6 +179,18 @@ export default function Tetris() {
   const [level, setLevel] = useState(1);
   const [gameOver, setGameOver] = useState(false);
   const [isPaused, setIsPaused] = useState(true);
+
+  const {
+    isMuted,
+    setIsMuted,
+    playMoveSound,
+    playRotateSound,
+    playDropSound,
+    playLineClearSound,
+    playGameOverSound,
+    startBGM,
+    stopBGM,
+  } = useAudio();
 
   const clearLines = useCallback((newBoard: number[][]) => {
     const fullLines: number[] = [];
@@ -70,6 +202,8 @@ export default function Tetris() {
     }
     
     if (fullLines.length > 0) {
+      playLineClearSound();
+      
       fullLines.forEach(lineIndex => {
         newBoard.splice(lineIndex, 1);
         newBoard.unshift(Array(BOARD_WIDTH).fill(0));
@@ -84,9 +218,11 @@ export default function Tetris() {
     }
     
     return newBoard;
-  }, [level, lines]);
+  }, [level, lines, playLineClearSound]);
 
   const placePiece = useCallback(() => {
+    playDropSound();
+    
     const newBoard = board.map(row => [...row]);
     
     currentPiece.shape.forEach((row, py) => {
@@ -110,12 +246,14 @@ export default function Tetris() {
     if (!isValidPosition(clearedBoard, newPiece.shape, newPosition.x, newPosition.y)) {
       setGameOver(true);
       setIsPaused(true);
+      stopBGM();
+      playGameOverSound();
       return;
     }
     
     setCurrentPiece(newPiece);
     setPosition(newPosition);
-  }, [board, currentPiece, position, clearLines]);
+  }, [board, currentPiece, position, clearLines, playDropSound, stopBGM, playGameOverSound]);
 
   const moveDown = useCallback(() => {
     if (gameOver || isPaused) return;
@@ -130,9 +268,11 @@ export default function Tetris() {
       } else {
         setGameOver(true);
         setIsPaused(true);
+        stopBGM();
+        playGameOverSound();
       }
     }
-  }, [board, currentPiece.shape, position, gameOver, isPaused, placePiece]);
+  }, [board, currentPiece.shape, position, gameOver, isPaused, placePiece, stopBGM, playGameOverSound]);
 
   const move = useCallback((dx: number) => {
     if (gameOver || isPaused) return;
@@ -141,8 +281,9 @@ export default function Tetris() {
     
     if (isValidPosition(board, currentPiece.shape, newX, position.y)) {
       setPosition(prev => ({ ...prev, x: newX }));
+      playMoveSound();
     }
-  }, [board, currentPiece.shape, position, gameOver, isPaused]);
+  }, [board, currentPiece.shape, position, gameOver, isPaused, playMoveSound]);
 
   const rotate = useCallback(() => {
     if (gameOver || isPaused) return;
@@ -151,8 +292,9 @@ export default function Tetris() {
     
     if (isValidPosition(board, rotated, position.x, position.y)) {
       setCurrentPiece(prev => ({ ...prev, shape: rotated }));
+      playRotateSound();
     }
-  }, [board, currentPiece.shape, position, gameOver, isPaused]);
+  }, [board, currentPiece.shape, position, gameOver, isPaused, playRotateSound]);
 
   const startGame = useCallback(() => {
     const newBoard = createEmptyBoard();
@@ -167,7 +309,25 @@ export default function Tetris() {
     setLevel(1);
     setGameOver(false);
     setIsPaused(false);
-  }, []);
+    
+    if (!isMuted) {
+      startBGM();
+    }
+  }, [isMuted, startBGM]);
+
+  const togglePause = useCallback(() => {
+    if (gameOver) return;
+    
+    setIsPaused(prev => {
+      const newPaused = !prev;
+      if (newPaused) {
+        stopBGM();
+      } else if (!isMuted) {
+        startBGM();
+      }
+      return newPaused;
+    });
+  }, [gameOver, isMuted, startBGM, stopBGM]);
 
   const handleKeyPress = useCallback((e: KeyboardEvent) => {
     if (gameOver) return;
@@ -191,10 +351,10 @@ export default function Tetris() {
         break;
       case 'Space':
         e.preventDefault();
-        setIsPaused(prev => !prev);
+        togglePause();
         break;
     }
-  }, [gameOver, move, moveDown, rotate]);
+  }, [gameOver, move, moveDown, rotate, togglePause]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyPress);
@@ -282,6 +442,17 @@ export default function Tetris() {
             className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-bold"
           >
             {gameOver ? 'New Game' : 'Start Game'}
+          </button>
+          
+          <button 
+            onClick={() => setIsMuted(!isMuted)}
+            className={`px-6 py-3 rounded-lg font-bold ${
+              isMuted 
+                ? 'bg-red-600 hover:bg-red-700' 
+                : 'bg-green-600 hover:bg-green-700'
+            }`}
+          >
+            {isMuted ? '🔇 음소거' : '🔊 소리켜기'}
           </button>
           
           <div className="p-4 border border-gray-500 rounded-lg text-sm">
