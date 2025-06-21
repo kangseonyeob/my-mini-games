@@ -53,29 +53,39 @@ const rotatePiece = (piece: number[][]) => {
 // Audio hook for sound management
 const useAudio = () => {
   const [isMuted, setIsMuted] = useState(false);
-  const bgmRef = useRef<HTMLAudioElement | null>(null);
+  const [isBGMPlaying, setIsBGMPlaying] = useState(false);
+  const bgmTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  
+  // Initialize AudioContext
+  useEffect(() => {
+    try {
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    } catch (error) {
+      console.log('AudioContext not supported');
+    }
+  }, []);
   
   const playSound = useCallback((frequency: number, duration: number, type: 'sine' | 'square' | 'triangle' = 'sine') => {
-    if (isMuted) return;
+    if (isMuted || !audioContextRef.current) return;
     
     try {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
+      const oscillator = audioContextRef.current.createOscillator();
+      const gainNode = audioContextRef.current.createGain();
       
       oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
+      gainNode.connect(audioContextRef.current.destination);
       
-      oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+      oscillator.frequency.setValueAtTime(frequency, audioContextRef.current.currentTime);
       oscillator.type = type;
       
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+      gainNode.gain.setValueAtTime(0.2, audioContextRef.current.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + duration);
       
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + duration);
+      oscillator.start(audioContextRef.current.currentTime);
+      oscillator.stop(audioContextRef.current.currentTime + duration);
     } catch (error) {
-      console.log('Audio not supported');
+      console.log('Audio playback error:', error);
     }
   }, [isMuted]);
 
@@ -106,60 +116,109 @@ const useAudio = () => {
     setTimeout(() => playSound(200, 0.5), 600);
   }, [playSound]);
 
-  const startBGM = useCallback(() => {
-    if (isMuted) return;
+  const playBGMNote = useCallback((frequency: number, duration: number, delay: number) => {
+    if (isMuted || !audioContextRef.current || !isBGMPlaying) return;
     
-    // Create a simple melody using Web Audio API
-    const playBGMLoop = () => {
-      if (isMuted) return;
+    setTimeout(() => {
+      if (isBGMPlaying && !isMuted && audioContextRef.current) {
+        try {
+          const oscillator = audioContextRef.current.createOscillator();
+          const gainNode = audioContextRef.current.createGain();
+          
+          oscillator.connect(gainNode);
+          gainNode.connect(audioContextRef.current.destination);
+          
+          oscillator.frequency.setValueAtTime(frequency, audioContextRef.current.currentTime);
+          oscillator.type = 'triangle';
+          
+          gainNode.gain.setValueAtTime(0.1, audioContextRef.current.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + duration);
+          
+          oscillator.start(audioContextRef.current.currentTime);
+          oscillator.stop(audioContextRef.current.currentTime + duration);
+        } catch (error) {
+          console.log('BGM note error:', error);
+        }
+      }
+    }, delay);
+  }, [isMuted, isBGMPlaying]);
+
+  const startBGM = useCallback(() => {
+    if (isMuted || !audioContextRef.current) return;
+    
+    // Resume AudioContext if suspended (required for user interaction)
+    if (audioContextRef.current.state === 'suspended') {
+      console.log('Resuming suspended AudioContext...');
+      audioContextRef.current.resume().then(() => {
+        console.log('AudioContext resumed successfully');
+      }).catch((error) => {
+        console.log('Failed to resume AudioContext:', error);
+      });
+    }
+    
+    console.log('Starting BGM..., AudioContext state:', audioContextRef.current.state);
+    setIsBGMPlaying(true);
+    
+    const playMelodyLoop = () => {
+      if (!isBGMPlaying || isMuted) return;
       
       const melody = [
-        { freq: 330, duration: 0.5 }, // E
-        { freq: 247, duration: 0.25 }, // B
-        { freq: 262, duration: 0.25 }, // C
-        { freq: 294, duration: 0.5 }, // D
-        { freq: 262, duration: 0.25 }, // C
-        { freq: 247, duration: 0.25 }, // B
-        { freq: 220, duration: 0.5 }, // A
-        { freq: 220, duration: 0.25 }, // A
-        { freq: 262, duration: 0.25 }, // C
-        { freq: 330, duration: 0.5 }, // E
-        { freq: 294, duration: 0.25 }, // D
-        { freq: 262, duration: 0.25 }, // C
-        { freq: 247, duration: 1 }, // B
+        { freq: 330, duration: 0.4 }, // E
+        { freq: 247, duration: 0.2 }, // B
+        { freq: 262, duration: 0.2 }, // C
+        { freq: 294, duration: 0.4 }, // D
+        { freq: 262, duration: 0.2 }, // C
+        { freq: 247, duration: 0.2 }, // B
+        { freq: 220, duration: 0.4 }, // A
+        { freq: 220, duration: 0.2 }, // A
+        { freq: 262, duration: 0.2 }, // C
+        { freq: 330, duration: 0.4 }, // E
+        { freq: 294, duration: 0.2 }, // D
+        { freq: 262, duration: 0.2 }, // C
+        { freq: 247, duration: 0.8 }, // B
       ];
       
       let currentTime = 0;
-      melody.forEach((note, index) => {
-        setTimeout(() => {
-          if (!isMuted) {
-            playSound(note.freq, note.duration, 'triangle');
-          }
-        }, currentTime * 1000);
+      melody.forEach((note) => {
+        playBGMNote(note.freq, note.duration, currentTime * 1000);
         currentTime += note.duration;
       });
       
-      // Loop the melody
-      setTimeout(() => {
-        if (!isMuted) {
-          playBGMLoop();
+      // Schedule next loop
+      bgmTimeoutRef.current = setTimeout(() => {
+        if (isBGMPlaying && !isMuted) {
+          playMelodyLoop();
         }
-      }, currentTime * 1000 + 1000);
+      }, (currentTime + 1) * 1000);
     };
     
-    playBGMLoop();
-  }, [isMuted, playSound]);
+    // Start the melody loop
+    playMelodyLoop();
+  }, [isMuted, isBGMPlaying, playBGMNote]);
 
   const stopBGM = useCallback(() => {
-    if (bgmRef.current) {
-      bgmRef.current.pause();
-      bgmRef.current.currentTime = 0;
+    console.log('Stopping BGM...');
+    setIsBGMPlaying(false);
+    if (bgmTimeoutRef.current) {
+      clearTimeout(bgmTimeoutRef.current);
+      bgmTimeoutRef.current = null;
     }
   }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      stopBGM();
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
+    };
+  }, [stopBGM]);
 
   return {
     isMuted,
     setIsMuted,
+    isBGMPlaying,
     playMoveSound,
     playRotateSound,
     playDropSound,
@@ -183,6 +242,7 @@ export default function Tetris() {
   const {
     isMuted,
     setIsMuted,
+    isBGMPlaying,
     playMoveSound,
     playRotateSound,
     playDropSound,
@@ -310,7 +370,9 @@ export default function Tetris() {
     setGameOver(false);
     setIsPaused(false);
     
+    console.log('Game started, isMuted:', isMuted);
     if (!isMuted) {
+      console.log('Attempting to start BGM...');
       startBGM();
     }
   }, [isMuted, startBGM]);
@@ -454,6 +516,30 @@ export default function Tetris() {
           >
             {isMuted ? '🔇 음소거' : '🔊 소리켜기'}
           </button>
+          
+          <button 
+            onClick={() => {
+              if (isBGMPlaying) {
+                stopBGM();
+              } else {
+                startBGM();
+              }
+            }}
+            className={`px-6 py-3 rounded-lg font-bold ${
+              isBGMPlaying 
+                ? 'bg-purple-600 hover:bg-purple-700' 
+                : 'bg-gray-600 hover:bg-gray-700'
+            }`}
+            disabled={isMuted}
+          >
+            {isBGMPlaying ? '🎵 BGM 정지' : '🎵 BGM 시작'}
+          </button>
+          
+          {isBGMPlaying && (
+            <div className="p-2 border border-purple-500 rounded-lg bg-purple-900/20 text-center">
+              <span className="text-purple-400 text-sm">🎵 BGM 재생 중...</span>
+            </div>
+          )}
           
           <div className="p-4 border border-gray-500 rounded-lg text-sm">
             <h3 className="font-bold mb-2">조작법</h3>
